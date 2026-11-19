@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" id="meta-theme-color" content="#121212" />
+  <title>SyncStage — Multi-Phone Audio Sync</title>
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('syncstage_theme');
+        var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+        document.documentElement.dataset.theme = theme;
+        var meta = document.getElementById('meta-theme-color');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#fafafa' : '#121212');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <!-- Persistent Top Navigation -->
+  <header class="site-nav">
+    <div class="nav-brand">
+      <svg class="wave-emblem" viewBox="0 0 28 24" width="26" height="22" aria-hidden="true">
+        <rect x="1" y="9" width="3" height="6" rx="1.5" fill="currentColor" opacity="0.45" />
+        <rect x="6.5" y="5" width="3" height="14" rx="1.5" fill="currentColor" opacity="0.75" />
+        <rect x="12" y="1" width="3.5" height="22" rx="1.75" fill="var(--red)" />
+        <rect x="18" y="5" width="3" height="14" rx="1.5" fill="currentColor" opacity="0.75" />
+        <rect x="23.5" y="9" width="3" height="6" rx="1.5" fill="currentColor" opacity="0.45" />
+      </svg>
+      <span class="brand-wordmark">syncstage</span>
+      <span class="brand-sub">audio sync</span>
+      <span class="beta-pill">V1.0</span>
+    </div>
+
+    <div class="nav-actions">
+      <div id="room-nav-controls" class="nav-room-controls hidden">
+        <span class="room-code-tag">ROOM <strong id="header-room-code">SYNC</strong></span>
+        <button id="open-qr-btn" class="btn-outline" type="button">QR / Invite</button>
+        <button id="leave-room-btn" class="btn-ghost" type="button">Leave</button>
+      </div>
+      <button id="theme-toggle-btn" class="theme-btn" type="button" aria-label="Toggle light or dark theme">
+        ☀ Light
+      </button>
+    </div>
+  </header>
+
+  <!-- Screen 1: Open Chalkboard Landing / Join Gate -->
+  <main id="join-screen" class="page-wrap join-screen">
+    <section class="hero-block">
+      <div class="hero-wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+      </div>
+
+      <h1 class="hero-title">Sync every phone into one speaker.</h1>
+
+      <p class="callout-strip">
+        Zero cloud audio relays. Clocks lock phone-to-phone over local Wi-Fi.
+      </p>
+
+      <div class="underline-tabs" role="tablist" aria-label="Session Mode">
+        <button id="mode-host-btn" class="underline-tab active" type="button">Create Room</button>
+        <button id="mode-listener-btn" class="underline-tab" type="button">Join Room</button>
+      </div>
+
+      <div class="open-form-grid">
+        <div class="open-field">
+          <label for="room-code-input">Room Code</label>
+          <div class="code-line">
+            <input
+              id="room-code-input"
+              type="text"
+              maxlength="8"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="SYNC"
+            />
+            <button id="random-code-btn" class="btn-outline btn-xs" type="button" title="Generate new room code">
+              New
+            </button>
+          </div>
+        </div>
+
+        <div class="open-field">
+          <label for="nickname-input">Device Name</label>
+          <input
+            id="nickname-input"
+            type="text"
+            maxlength="32"
+            autocomplete="off"
+            placeholder="Android-101"
+          />
+        </div>
+      </div>
+
+      <div id="join-error" class="callout-alert hidden" role="alert"></div>
+
+      <div class="cta-wrap">
+        <button id="unlock-join-btn" class="btn-primary btn-cta" type="button">
+          UNLOCK SPEAKER &amp; JOIN →
+        </button>
+        <p class="cta-whisper">Unlocks Web Audio &amp; Wake Lock · Keep screen awake</p>
+      </div>
+
+      <hr class="chalk-rule" />
+
+      <div class="chalk-steps" aria-label="How SyncStage works">
+        <div class="chalk-step">
+          <span class="step-num">1.</span>
+          <p>Create a room or scan the QR link on any phone.</p>
+        </div>
+        <div class="chalk-step">
+          <span class="step-num">2.</span>
+          <p>Clocks lock automatically over local Wi-Fi P2P.</p>
+        </div>
+        <div class="chalk-step">
+          <span class="step-num">3.</span>
+          <p>Fine-tune speaker delay and play in tight sync.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Screen 2: Open Room Workspace -->
+  <main id="room-screen" class="page-wrap room-screen hidden">
+    <div id="background-banner" class="callout-alert hidden" role="alert">
+      <span>Your browser tab went to the background. Return here and tap if audio paused.</span>
+    </div>
+
+    <div id="host-left-banner" class="callout-alert hidden" role="alert">
+      <span>The Host disconnected. Waiting for a Host to rejoin the room...</span>
+    </div>
+
+    <div id="isolation-banner" class="callout-alert callout-alert-action hidden" role="alert">
+      <span>
+        <strong>Your Wi-Fi may block local device-to-device connections (AP Isolation).</strong>
+        Switch to a phone hotspot or configure a TURN relay.
+      </span>
+      <div class="banner-actions">
+        <button id="open-turn-btn" class="btn-outline btn-xs" type="button">Configure TURN</button>
+        <button id="retry-p2p-btn" class="btn-outline btn-xs" type="button">Retry P2P</button>
+      </div>
+    </div>
+
+    <!-- Mode Tabs + Live Status Strip -->
+    <div class="stage-bar">
+      <nav class="mode-tabs" aria-label="Playback Modes">
+        <button id="tab-btn-files" class="tab-btn active" type="button" data-tab="files">Files</button>
+        <button id="tab-btn-cast" class="tab-btn" type="button" data-tab="cast">Cast</button>
+        <button id="tab-btn-remote" class="tab-btn" type="button" data-tab="remote">Remote</button>
+      </nav>
+      <div class="status-strip">
+        <span id="mesh-badge" class="badge warn"><span class="dot"></span> Connecting</span>
+        <span id="wakelock-badge" class="badge"><span class="dot"></span> Wake Lock</span>
+      </div>
+    </div>
+
+    <!-- Open Sync Stage Hero -->
+    <section class="stage-section">
+      <div id="pulse-box" class="pulse-stage">
+        <div id="sync-wave" class="sync-wave" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+          <span class="center-bar"></span>
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <canvas id="spectrum-canvas" class="spectrum-canvas" aria-hidden="true"></canvas>
+
+        <div class="telemetry-row">
+          <div class="telemetry-cell">
+            <span class="t-label">OFFSET</span>
+            <strong id="stat-offset" class="t-value">0.0 ms</strong>
+          </div>
+          <div class="telemetry-cell">
+            <span class="t-label">BEST RTT</span>
+            <strong id="stat-rtt" class="t-value">0.0 ms</strong>
+          </div>
+          <div class="telemetry-cell">
+            <span class="t-label">SPEAKERS</span>
+            <strong id="stat-peers-ready" class="t-value">0 / 0</strong>
+          </div>
+          <div class="telemetry-cell">
+            <span class="t-label">MODE</span>
+            <strong id="stat-role" class="t-value">Host</strong>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-files">
+        <div id="files-drop-zone" class="files-drop-zone">
+          <input id="file-input" type="file" accept="audio/*" class="hidden" />
+
+          <div class="stage-actions">
+            <button id="pick-file-btn" class="btn-primary" type="button">
+              PICK AUDIO FILE
+            </button>
+            <button id="load-test-track-btn" class="btn-outline" type="button">
+              BEAT TEST TRACK
+            </button>
+            <button id="test-pulse-btn" class="btn-outline" type="button">
+              SYNC PULSE
+            </button>
+            <button id="resync-clock-btn" class="btn-outline" type="button">
+              RE-SYNC 20x
+            </button>
+            <span class="engine-tag">48 kHz · WEBRTC P2P</span>
+          </div>
+
+          <p id="file-drop-hint" class="chalk-whisper-note">
+            Drop any MP3, WAV, FLAC, OGG, or M4A here — or tap Beat Test Track for instant 120 BPM calibration.
+          </p>
+
+          <div id="track-bar" class="track-bar hidden">
+            <div class="track-header">
+              <span id="track-title" class="track-title">Track</span>
+              <span id="track-status" class="track-status">Ready</span>
+            </div>
+            <div class="progress-rail">
+              <div id="transfer-progress-fill" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="transport-row">
+              <button id="play-pause-btn" class="btn-primary btn-xs" type="button">PLAY ▶</button>
+              <span id="track-time" class="track-time">0:00 / 0:00</span>
+              <input
+                id="track-seek-slider"
+                class="chalk-slider seek-slider"
+                type="range"
+                min="0"
+                max="100"
+                step="0.1"
+                value="0"
+                aria-label="Track playback position"
+              />
+              <button id="loop-toggle-btn" class="role-btn active" type="button">Loop</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-cast" class="hidden">
+        <div class="panel-heading">
+          <h2>Live Tab Audio Cast</h2>
+          <span id="cast-codec-badge" class="beta-pill">OPUS 128k</span>
+        </div>
+        <p class="panel-desc">
+          Capture Spotify Web, YouTube Music, or Apple Music from a PC Chrome/Edge tab and stream timestamped frames over WebRTC DataChannels.
+        </p>
+
+        <div id="cast-host-controls" class="cast-controls">
+          <button id="cast-toggle-btn" class="btn-primary" type="button">
+            CAPTURE TAB AUDIO
+          </button>
+          <button id="cast-monitor-btn" class="dsp-toggle active" type="button" aria-pressed="true">
+            Host Monitor: ON
+          </button>
+          <select id="cast-delay-select" class="role-select" aria-label="Cast buffer delay">
+            <option value="500">500 ms buffer</option>
+            <option value="650" selected>650 ms buffer</option>
+            <option value="1000">1000 ms buffer</option>
+          </select>
+        </div>
+
+        <p id="cast-status-text" class="cast-status-line">Idle — ready for live capture</p>
+        <div id="cast-error" class="callout-alert hidden" role="alert"></div>
+
+        <p id="cast-capability-text" class="callout-strip">
+          Checking getDisplayMedia &amp; WebCodecs Opus support...
+        </p>
+      </div>
+
+      <div id="panel-remote" class="hidden">
+        <div class="panel-heading">
+          <h2>Remote Party Sync</h2>
+          <span class="beta-pill">YOUTUBE SYNC</span>
+        </div>
+        <p class="panel-desc">
+          Paste a YouTube or YouTube Music link so remote friends play along on their own screen, re-synced every 1.5s.
+        </p>
+
+        <div id="remote-host-controls" class="remote-bar">
+          <input
+            id="remote-url-input"
+            class="inline-chalk-input"
+            type="text"
+            placeholder="Paste YouTube or YT Music URL..."
+            autocomplete="off"
+          />
+          <button id="remote-load-btn" class="btn-primary btn-xs" type="button">LOAD VIDEO</button>
+          <button id="remote-sync-btn" class="btn-outline btn-xs" type="button">SYNC ALL</button>
+        </div>
+
+        <div id="remote-error" class="callout-alert hidden" role="alert"></div>
+
+        <div id="remote-player-wrap" class="remote-player-wrap hidden">
+          <div id="yt-player-mount"></div>
+        </div>
+
+        <p id="remote-status-text" class="cast-status-line">No remote video loaded yet.</p>
+        <p class="chalk-whisper-note">
+          Each device plays its own YouTube stream (loose sync; ads or buffering can cause temporary drift).
+        </p>
+      </div>
+    </section>
+
+    <hr class="chalk-rule" />
+
+    <!-- Open Speaker Tuning -->
+    <section class="tuning-section">
+      <div class="section-head">
+        <h2>Speaker Tuning</h2>
+        <span id="offset-readout" class="offset-readout">0 ms</span>
+      </div>
+
+      <input
+        id="offset-slider"
+        class="chalk-slider"
+        type="range"
+        min="-150"
+        max="150"
+        step="1"
+        value="0"
+        aria-label="Manual latency offset in milliseconds"
+      />
+
+      <div class="nudge-row">
+        <button class="nudge-btn" type="button" data-nudge="-10">-10 ms</button>
+        <button class="nudge-btn" type="button" data-nudge="-1">-1 ms</button>
+        <button class="nudge-btn" type="button" data-nudge="reset">0 ms</button>
+        <button class="nudge-btn" type="button" data-nudge="1">+1 ms</button>
+        <button class="nudge-btn" type="button" data-nudge="10">+10 ms</button>
+      </div>
+
+      <div class="tuning-footer">
+        <div class="role-pills" id="local-role-group" role="group" aria-label="Speaker channel role">
+          <button class="role-btn active" type="button" data-role="full">Full</button>
+          <button class="role-btn" type="button" data-role="left">Left</button>
+          <button class="role-btn" type="button" data-role="right">Right</button>
+          <button class="role-btn" type="button" data-role="center">Center</button>
+        </div>
+
+        <div class="dsp-pills" id="local-dsp-group" role="group" aria-label="Loudness DSP">
+          <button id="toggle-bass-btn" class="dsp-toggle" type="button" aria-pressed="false">Bass Enhance</button>
+          <button id="toggle-limiter-btn" class="dsp-toggle active" type="button" aria-pressed="true">Limiter</button>
+        </div>
+
+        <div class="volume-control">
+          <span class="t-label">VOL</span>
+          <input id="volume-slider" class="chalk-slider volume-slider" type="range" min="0" max="100" value="100" aria-label="Device speaker volume" />
+          <span id="volume-readout" class="vol-readout">100%</span>
+        </div>
+      </div>
+    </section>
+
+    <hr class="chalk-rule" />
+
+    <!-- Open Friend Song Requests -->
+    <section class="requests-section">
+      <div class="section-head">
+        <h2>Song Requests</h2>
+        <span id="requests-count" class="roster-count">0 requests</span>
+      </div>
+
+      <div class="request-bar">
+        <input
+          id="request-input"
+          class="inline-chalk-input"
+          type="text"
+          maxlength="120"
+          placeholder="Request a song or artist..."
+          autocomplete="off"
+        />
+        <button id="request-add-btn" class="btn-primary btn-xs" type="button">ADD</button>
+      </div>
+
+      <div id="requests-list" class="requests-list"></div>
+    </section>
+
+    <hr class="chalk-rule" />
+
+    <!-- Open Live Device Roster -->
+    <section class="roster-section">
+      <div class="section-head">
+        <h2>Connected Speakers</h2>
+        <span id="roster-count" class="roster-count">0 devices</span>
+      </div>
+      <div id="roster-list" class="roster-list"></div>
+    </section>
+
+    <footer class="stage-footer">
+      Keep screen unlocked — browsers pause Web Audio on lock · Place phones on a hard table or in a ceramic bowl for louder projection
+    </footer>
+  </main>
+
+  <!-- QR Invite Modal -->
+  <div id="qr-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="qr-modal-title">Scan to Join Speaker Grid</h3>
+        <button id="close-qr-btn" class="btn-ghost" type="button">Close</button>
+      </div>
+
+      <div id="qr-svg-container" class="qr-frame"></div>
+
+      <div id="lan-ip-field" class="modal-field hidden">
+        <label for="lan-ip-select">Local Wi-Fi Address (for phones)</label>
+        <select id="lan-ip-select"></select>
+      </div>
+
+      <div class="modal-field" style="margin-bottom: 0;">
+        <label for="invite-url-input">Room Link</label>
+        <div class="copy-row">
+          <input id="invite-url-input" type="text" readonly />
+          <button id="copy-link-btn" class="btn-primary btn-xs" type="button">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN Server Modal -->
+  <div id="turn-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="turn-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="turn-modal-title">Configure TURN Fallback</h3>
+        <button id="close-turn-btn" class="btn-ghost" type="button">Close</button>
+      </div>
+      <div class="modal-field">
+        <label for="turn-url-input">TURN Server URL</label>
+        <input id="turn-url-input" type="text" placeholder="turn:relay.example.com:3478" />
+      </div>
+      <div class="modal-field">
+        <label for="turn-user-input">Username (optional)</label>
+        <input id="turn-user-input" type="text" placeholder="username" />
+      </div>
+      <div class="modal-field">
+        <label for="turn-pass-input">Credential (optional)</label>
+        <input id="turn-pass-input" type="password" placeholder="password" />
+      </div>
+      <div class="modal-actions">
+        <button id="clear-turn-btn" class="btn-ghost" type="button">Clear</button>
+        <button id="save-turn-btn" class="btn-primary btn-xs" type="button">Save &amp; Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

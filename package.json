@@ -1,0 +1,15 @@
+{
+  "name": "syncstage",
+  "version": "1.0.0",
+  "description": "SyncStage — multi-phone synchronized speaker system over WebRTC DataChannels and Cloudflare Durable Objects",
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.js",
+    "start": "node dev-server.js",
+    "test:unit": "node test-release2.js && node test-release345.js",
+    "test": "node test-release2.js && node test-release345.js && node test-release1.js",
+    "cf:dev": "npx wrangler dev",
+    "cf:deploy": "npx wrangler deploy"
+  },
+  "license": "MIT"
+}
